@@ -1,1 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Coreball</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --white:#fff; --dim:#7c7c86; --pre:#ff6a3d; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:#000;color:var(--white);font-family:"Space Grotesk",system-ui,sans-serif;
+    min-height:100%;display:flex;align-items:center;justify-content:center;padding:12px;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  .frame{width:min(460px,100%);display:flex;flex-direction:column;gap:10px}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:0 2px}
+  .brand{font-weight:700;font-size:22px;letter-spacing:-.5px;display:flex;align-items:center;gap:8px}
+  .brand .dot{width:12px;height:12px;border-radius:50%;background:#fff}
+  .bar-btns{display:flex;gap:8px}
+  .tbtn{font-family:"Space Mono",monospace;font-size:12px;letter-spacing:1px;color:var(--dim);
+    background:none;border:1px solid #26262c;border-radius:9px;padding:7px 11px;cursor:pointer;transition:all .15s;text-transform:uppercase}
+  .tbtn:hover{color:#fff;border-color:#4a4a55}
+  .hud{display:flex;align-items:center;justify-content:space-between;padding:0 2px;min-height:20px}
+  .level-tag{font-family:"Space Mono",monospace;font-size:12px;letter-spacing:1px;color:var(--dim)}
+  .level-tag b{color:#fff;font-size:14px}
+  .pips{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:64%}
+  .pip{width:7px;height:7px;border-radius:50%;background:#26262c;transition:all .2s}
+  .pip.on{background:#fff}
+  .stage{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:1/1;touch-action:none}
+  canvas{display:block;width:100%;height:100%}
+  .hint{text-align:center;font-size:12.5px;color:var(--dim);letter-spacing:.3px;min-height:16px}
+  .hint b{color:#fff}
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;gap:12px;padding:26px;background:rgba(0,0,0,.82);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity .22s ease;z-index:2}
+  .overlay.show{opacity:1;pointer-events:auto}
+  .o-kicker{font-family:"Space Mono",monospace;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--dim)}
+  .o-title{font-size:32px;font-weight:700;letter-spacing:-1px;line-height:1}
+  .o-title.lose{color:#ff5470}
+  .o-body{font-size:13.5px;color:var(--dim);max-width:300px;line-height:1.5}
+  .o-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+  .btn{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:15px;color:#000;background:#fff;border:none;
+    border-radius:12px;padding:12px 26px;cursor:pointer;transition:transform .1s,opacity .15s;letter-spacing:.2px}
+  .btn:hover{opacity:.9}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:transparent;color:var(--dim);border:1px solid #33333b;padding:11px 20px;font-size:14px}
+  .btn.ghost:hover{color:#fff;border-color:#55555f}
+  .lsel{position:absolute;inset:0;display:flex;flex-direction:column;padding:22px 20px;gap:16px;
+    background:rgba(0,0,0,.94);opacity:0;pointer-events:none;transition:opacity .22s ease;z-index:3}
+  .lsel.show{opacity:1;pointer-events:auto}
+  .lsel-head{display:flex;align-items:center;justify-content:space-between}
+  .lsel-head h2{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;align-content:start}
+  .lvl{aspect-ratio:1/1;border:1px solid #2b2b33;border-radius:11px;background:#0c0c0f;color:#fff;
+    font-family:"Space Mono",monospace;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .13s}
+  .lvl:hover{border-color:#fff;background:#161620}
+  .lvl.current{border-color:#fff;background:#fff;color:#000}
+  .close-x{font-size:13px;color:var(--dim);background:none;border:1px solid #2b2b33;border-radius:9px;padding:7px 13px;cursor:pointer;font-family:"Space Mono",monospace}
+  .close-x:hover{color:#fff;border-color:#55555f}
+  @media (max-width:420px){.o-title{font-size:27px}.brand{font-size:19px}}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="bar">
+      <div class="brand"><span class="dot"></span>Coreball</div>
+      <div class="bar-btns">
+        <button class="tbtn" id="btnLevels">Levels</button>
+        <button class="tbtn" id="btnSkip">Skip &#9656;</button>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="level-tag">LEVEL <b id="lvlNum">1</b><span style="color:#2b2b33"> / 20</span></div>
+      <div class="pips" id="pips"></div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="cv"></canvas>
+      <div class="overlay show" id="overlay">
+        <div class="o-kicker" id="oKicker">tap to launch</div>
+        <div class="o-title" id="oTitle">Coreball</div>
+        <div class="o-body" id="oBody">Fire your pins into the fast, steady spin. Orange pins are already attached &mdash; thread yours into the gaps without a single touch. The core fills up as you go, so the windows keep shrinking.</div>
+        <div class="o-row" id="oRow"><button class="btn" id="oMain">Play</button></div>
+      </div>
+      <div class="lsel" id="lsel">
+        <div class="lsel-head"><h2>Select level</h2><button class="close-x" id="lselClose">Close</button></div>
+        <div class="grid" id="grid"></div>
+      </div>
+    </div>
+    <div class="hint" id="hint">Tap the board or press <b>space</b> to launch</div>
+  </div>
 
+<script>
+(() => {
+  "use strict";
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const stage = document.getElementById('stage');
+
+  const W = 460, H = 460;
+  const CX = W / 2, CY = 206;
+  const CORE_R = 60;
+  const ORBIT_D = 136;
+  const BALL_R = 10;
+  const LAUNCH_Y = CY + ORBIT_D + 54;
+  const TRAVEL_TIME = 0.02;             // near-instant, no launch delay
+  const SPEED = 2.7;                    // rad/s — constant for every level
+  const ATTACH_WORLD = Math.PI / 2;
+  const D2R = Math.PI / 180;
+
+  const BALL_ANG = Math.asin(BALL_R / ORBIT_D);
+  const COLLIDE_ANGLE = 2 * BALL_ANG * 0.9;
+
+  function resize(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize(); window.addEventListener('resize', resize);
+
+  // Constant fast spin, one direction. Difficulty = how tightly the core is
+  // packed. Each level's optimal timing window shrinks from ~480ms to ~31ms.
+  // pre = balls already attached (deg); balls = how many you must add.
+  const LEVELS = [
+    { balls:4, pre:[0] },
+    { balls:5, pre:[25,97,169,241,313] },
+    { balls:4, pre:[50,170,290] },
+    { balls:5, pre:[12,63,115,166,218,269,321] },
+    { balls:4, pre:[37,82,127,172,217,262,307,352] },
+    { balls:5, pre:[18,58,98,138,178,218,258,298,338] },
+    { balls:4, pre:[8,44,80,116,152,188,224,260,296,332] },
+    { balls:5, pre:[28,61,93,126,159,192,224,257,290,323,355] },
+    { balls:9, pre:[8,41,73,106,139,172,204,237,270,303,335] },
+    { balls:4, pre:[10,40,70,100,130,160,190,220,250,280,310,340] },
+    { balls:5, pre:[15,43,70,98,126,153,181,209,237,264,292,320,347] },
+    { balls:10, pre:[20,48,76,103,131,159,186,214,242,270,297,325,353] },
+    { balls:4, pre:[22,48,73,99,125,151,176,202,228,253,279,305,331,356] },
+    { balls:11, pre:[7,33,59,84,110,136,162,187,213,239,264,290,316,342] },
+    { balls:4, pre:[7,31,55,79,103,127,151,175,199,223,247,271,295,319,343] },
+    { balls:5, pre:[10,33,55,78,100,123,145,168,190,213,235,258,280,303,325,348] },
+    { balls:9, pre:[42,87,132,177,222,267,312,357] },
+    { balls:10, pre:[20,43,65,88,110,133,155,178,200,223,245,268,290,313,335,358] },
+    { balls:4, pre:[10,31,52,73,94,116,137,158,179,200,221,243,264,285,306,327,348] },
+    { balls:5, pre:[10,30,50,70,90,110,130,150,170,190,210,230,250,270,290,310,330,350] },
+  ];
+  const TOTAL = LEVELS.length;
+
+  let levelIdx = 0, state = 'menu', hasActive = false;
+  let rotation = 0, placed = [], preCount = 0, target = 0;
+  let projectile = null, particles = [], shake = 0, lastTS = 0;
+
+  const overlay = document.getElementById('overlay');
+  const oKicker = document.getElementById('oKicker');
+  const oTitle  = document.getElementById('oTitle');
+  const oBody   = document.getElementById('oBody');
+  const oRow    = document.getElementById('oRow');
+  const lvlNum  = document.getElementById('lvlNum');
+  const pipsEl  = document.getElementById('pips');
+  const hintEl  = document.getElementById('hint');
+  const lsel    = document.getElementById('lsel');
+  const grid    = document.getElementById('grid');
+
+  for (let i = 0; i < TOTAL; i++){
+    const b = document.createElement('button');
+    b.className = 'lvl'; b.textContent = i + 1; b.dataset.i = i;
+    b.onclick = () => { closeLevels(); loadLevel(i); };
+    grid.appendChild(b);
+  }
+  function markGrid(){ [...grid.children].forEach((el, i) => el.classList.toggle('current', hasActive && i === levelIdx)); }
+
+  function addedCount(){ return placed.length - preCount; }
+
+  function renderPips(){
+    pipsEl.innerHTML = '';
+    const done = addedCount();
+    for (let i = 0; i < target; i++){
+      const p = document.createElement('div');
+      p.className = 'pip' + (i < done ? ' on' : '');
+      pipsEl.appendChild(p);
+    }
+  }
+
+  function showOverlay(kicker, title, body, buttons, titleClass){
+    oKicker.textContent = kicker;
+    oTitle.textContent = title;
+    oTitle.className = 'o-title' + (titleClass ? ' ' + titleClass : '');
+    oBody.innerHTML = body; oRow.innerHTML = '';
+    buttons.forEach(b => {
+      const btn = document.createElement('button');
+      btn.className = 'btn' + (b.ghost ? ' ghost' : '');
+      btn.textContent = b.label; btn.onclick = b.onClick;
+      oRow.appendChild(btn);
+    });
+    overlay.classList.add('show');
+  }
+  function hideOverlay(){ overlay.classList.remove('show'); }
+  function openLevels(){ hideOverlay(); markGrid(); lsel.classList.add('show'); }
+  function closeLevels(){ lsel.classList.remove('show'); if (!hasActive) showMenu(); }
+
+  function showMenu(){
+    state = 'menu';
+    showOverlay('tap to launch', 'Coreball',
+      'Fire your pins into the fast, steady spin. Orange pins are already attached &mdash; thread yours into the gaps without a single touch. The core fills up as you go, so the windows keep shrinking.',
+      [{ label:'Play', onClick:()=>loadLevel(0) }]);
+  }
+
+  function loadLevel(i){
+    levelIdx = i;
+    const lv = LEVELS[i];
+    rotation = 0;
+    placed = lv.pre.map(a => normalize(a * D2R));
+    preCount = placed.length;
+    target = lv.balls;
+    projectile = null; particles = []; shake = 0;
+    state = 'playing'; hasActive = true;
+    lvlNum.textContent = i + 1; renderPips();
+    hintEl.innerHTML = preCount
+      ? `Add <b>${target}</b> pins &middot; <b>${preCount}</b> already on the core`
+      : `Add <b>${target}</b> pins &middot; empty core`;
+    hideOverlay();
+  }
+
+  function launch(){ if (state === 'playing' && !projectile) projectile = { t: 0 }; }
+
+  function onArrive(){
+    const local = normalize(ATTACH_WORLD - rotation);
+    for (const e of placed){
+      if (Math.abs(shortest(local, e)) < COLLIDE_ANGLE){ lose(local); return; }
+    }
+    placed.push(local);
+    burst(CX, CY + ORBIT_D, '#fff', 10);
+    renderPips(); projectile = null;
+    if (addedCount() >= target) win();
+  }
+
+  function win(){
+    if (levelIdx + 1 >= TOTAL){
+      state = 'complete';
+      showOverlay('all cleared', 'Core Master',
+        'You cleared all 20 levels at full speed. The final windows were down around a couple of frames &mdash; that is no small thing.',
+        [{ label:'Play again', onClick:()=>loadLevel(0) }, { label:'Levels', ghost:true, onClick:openLevels }]);
+    } else {
+      state = 'won';
+      showOverlay('level clear', 'Clean run',
+        `Every pin landed. On to level <b style="color:#fff">${levelIdx+2}</b> &mdash; tighter gaps ahead.`,
+        [{ label:'Next level', onClick:()=>loadLevel(levelIdx+1) }, { label:'Levels', ghost:true, onClick:openLevels }]);
+    }
+  }
+
+  function lose(local){
+    state = 'lost'; projectile = null; shake = 14;
+    const wa = rotation + local;
+    burst(CX + ORBIT_D*Math.cos(wa), CY + ORBIT_D*Math.sin(wa), '#ff5470', 20);
+    setTimeout(() => {
+      showOverlay('collision', 'Pins touched',
+        `You placed <b style="color:#fff">${addedCount()}</b> of ${target}. Find the beat and fire on it.`,
+        [{ label:'Try again', onClick:()=>loadLevel(levelIdx) }, { label:'Levels', ghost:true, onClick:openLevels }], 'lose');
+    }, 300);
+  }
+
+  function burst(x, y, col, n){
+    for (let i = 0; i < n; i++){
+      const a = Math.random() * Math.PI * 2, sp = Math.random() * 2.6 + 0.6;
+      particles.push({ x, y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, life:1, col, r:Math.random()*2.2+1 });
+    }
+  }
+
+  function normalize(a){ a %= Math.PI*2; if (a < 0) a += Math.PI*2; return a; }
+  function shortest(a, b){ return Math.atan2(Math.sin(a-b), Math.cos(a-b)); }
+  function lerp(a, b, t){ return a + (b-a)*t; }
+
+  function update(dt){
+    if (state === 'playing' || state === 'won' || state === 'complete'){
+      rotation = normalize(rotation + SPEED * dt);   // constant speed, every level
+    }
+    if (projectile){ projectile.t += dt / TRAVEL_TIME; if (projectile.t >= 1) onArrive(); }
+    for (const p of particles){ p.x += p.vx; p.y += p.vy; p.vx *= 0.93; p.vy *= 0.93; p.life -= dt * 1.8; }
+    particles = particles.filter(p => p.life > 0);
+    if (shake > 0) shake = Math.max(0, shake - dt * 60);
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if (shake > 0) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+
+    ctx.beginPath(); ctx.arc(CX, CY, ORBIT_D, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([3,8]); ctx.stroke(); ctx.setLineDash([]);
+
+    for (let i = 0; i < placed.length; i++){
+      const wa = rotation + placed[i];
+      const bx = CX + ORBIT_D*Math.cos(wa), by = CY + ORBIT_D*Math.sin(wa);
+      const ix = CX + CORE_R*Math.cos(wa), iy = CY + CORE_R*Math.sin(wa);
+      const pre = i < preCount;
+      ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(bx, by);
+      ctx.strokeStyle = pre ? 'rgba(255,106,61,.7)' : 'rgba(255,255,255,.8)';
+      ctx.lineWidth = 2.5; ctx.stroke();
+      drawBall(bx, by, pre ? '#ff6a3d' : '#fff');
+    }
+
+    drawCore();
+
+    if (projectile){
+      const y = lerp(LAUNCH_Y, CY + ORBIT_D, projectile.t);
+      ctx.beginPath(); ctx.moveTo(CX, CY + CORE_R); ctx.lineTo(CX, y);
+      ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 2.5; ctx.stroke();
+      drawBall(CX, y, '#fff');
+    }
+    if (state === 'playing' && !projectile) drawLauncher();
+
+    for (const p of particles){
+      ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.col;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.restore();
+  }
+
+  function drawCore(){
+    ctx.beginPath(); ctx.arc(CX, CY, CORE_R, 0, Math.PI*2);
+    ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.save(); ctx.translate(CX, CY); ctx.rotate(rotation);
+    ctx.fillStyle = 'rgba(0,0,0,.16)';
+    for (let i = 0; i < 3; i++){ ctx.rotate(Math.PI*2/3);
+      ctx.beginPath(); ctx.ellipse(CORE_R*0.62, 0, 5, 2.4, 0, 0, Math.PI*2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  function drawBall(x, y, col){ ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, BALL_R, 0, Math.PI*2); ctx.fill(); }
+
+  function drawLauncher(){
+    ctx.fillStyle = 'rgba(255,255,255,.16)';
+    ctx.beginPath();
+    ctx.moveTo(CX-20, LAUNCH_Y+20); ctx.lineTo(CX+20, LAUNCH_Y+20);
+    ctx.lineTo(CX+11, LAUNCH_Y+6); ctx.lineTo(CX-11, LAUNCH_Y+6);
+    ctx.closePath(); ctx.fill();
+    const pulse = 0.10 + 0.07*Math.sin(performance.now()/300);
+    ctx.strokeStyle = `rgba(255,255,255,${pulse})`; ctx.lineWidth = 1.5; ctx.setLineDash([2,7]);
+    ctx.beginPath(); ctx.moveTo(CX, LAUNCH_Y-BALL_R); ctx.lineTo(CX, CY+ORBIT_D+BALL_R); ctx.stroke();
+    ctx.setLineDash([]);
+    drawBall(CX, LAUNCH_Y, '#fff');
+  }
+
+  function frame(ts){
+    if (!lastTS) lastTS = ts;
+    let dt = (ts - lastTS) / 1000; lastTS = ts;
+    if (dt > 0.05) dt = 0.05;
+    update(dt); draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  stage.addEventListener('pointerdown', (e) => {
+    if (lsel.classList.contains('show')) return;
+    if (state === 'playing'){ e.preventDefault(); launch(); }
+  });
+  window.addEventListener('keydown', (e) => {
+    if ((e.code === 'Space' || e.code === 'Enter') && state === 'playing'){ e.preventDefault(); launch(); }
+  });
+  document.getElementById('btnLevels').onclick = openLevels;
+  document.getElementById('lselClose').onclick = closeLevels;
+  document.getElementById('btnSkip').onclick = () => {
+    if (!hasActive){ loadLevel(0); return; }
+    if (levelIdx + 1 < TOTAL) loadLevel(levelIdx + 1); else openLevels();
+  };
+  document.getElementById('oMain').onclick = () => loadLevel(0);
+  renderPips();
+})();
+</script>
+</body>
+</html>
